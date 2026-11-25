@@ -1,0 +1,62 @@
+name: Extract ZIP and Build FootballTV APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'FootballTV_Complete_v2_1_FreeBroadcast(1).zip'
+      - '.github/workflows/extract-and-build.yml'
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Extract project ZIP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p extracted
+          unzip -o 'FootballTV_Complete_v2_1_FreeBroadcast(1).zip' -d extracted
+          echo "Extracted project files:"
+          find extracted -maxdepth 3 -type f | head -80
+          if [ ! -f extracted/settings.gradle ] && [ ! -f extracted/settings.gradle.kts ]; then
+            echo "Could not find settings.gradle or settings.gradle.kts at ZIP root."
+            echo "The ZIP may contain an extra top-level directory."
+            exit 1
+          fi
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          gradle -p extracted assembleDebug --no-daemon
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FootballTV-debug-apk
+          path: extracted/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
